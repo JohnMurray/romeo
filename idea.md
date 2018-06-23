@@ -65,7 +65,7 @@ enum AccountAction {
     Withdrawl(u32),
 }
 
-impl Actor for AccountingActor {
+AccountingActor {
     #[actor_new]
     pub fn new() -> Box<Self> {
       // new fn, that gets converted to ActorConstructable with macro
@@ -81,4 +81,20 @@ impl Actor for AccountingActor {
 }
 ```
 
-This code would need to transform into: ???
+We've already seen that the `new` would generate into an `ActorConstructable` instance,
+but the `#[actor_receive]` would have to translate into something like:
+
+```rust
+impl Receivable<AccountAction> for AccountActor {
+  pub fn receive(msg: AccountAction) {
+        match msg {
+            case AccountAction::Deposit(x)   => self.balance += x
+            case AccountAction::Withdrawl(x) => self.balance -= x
+        }
+  }
+}
+```
+
+This would allow an actor to implement everything within a single struct.
+Which feels more natural (to me) than breaking different message across different
+trait implementations (like above).
