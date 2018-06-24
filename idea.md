@@ -98,3 +98,25 @@ impl Receivable<AccountAction> for AccountActor {
 This would allow an actor to implement everything within a single struct.
 Which feels more natural (to me) than breaking different message across different
 trait implementations (like above).
+
+For sending messages then, the actor reference would be something like
+
+```rust
+struct ActorRef<A, M> {
+    // where M is implemented as a Receivable for T
+    // M is an unknown size, but pushing everything to the heap, which seems
+    // like an ugly solution
+    mailbox: Vec<M>
+    actor:   A
+}
+impl ActorRef {
+    pub fn send<M>(msg: M) {
+        mailbox.push(msg);
+    }
+}
+```
+
+When creating an actor, the system keeps track of all `ActorRef` objects and
+returns some sort of weak pointer. When looking up actors, we need a way to give
+both a name as well as an interface (how else will the client know what messages
+are valid).
