@@ -1,6 +1,6 @@
 # Ideas
 
-### Initial Design
+## Initial Design
 For the initial design, I want to be true to the actor model:
   + Asynchronous Message Passing
   + Actor Encapsulation
@@ -19,7 +19,7 @@ Exploration as to what is possible within Rust will be required to determine wha
 possible in the API we expose. Ideally I would like to mimic a receive pattern similar
 to Erland or Scala Akka:
 
-__Idea #1__
+## Rambling Session #1
 
 The idea of a `system` and a `context` can be taken from Akka to similar use:
 
@@ -120,3 +120,58 @@ When creating an actor, the system keeps track of all `ActorRef` objects and
 returns some sort of weak pointer. When looking up actors, we need a way to give
 both a name as well as an interface (how else will the client know what messages
 are valid).
+
+
+## Rambling Session #2
+
+When discussing questions of ownership and design, we need to consider where
+the actors will _live_. The current ownersihp model looks like
+
+```text
+                                                    +-----------+
+                                              +-----> Scheduler |
+                                              |     +-----------+
+                                              |
+                                              |     +-----------+
+                                              +-----> Scheduler |
+                                              |     +-----------+
+                                              |
+                                              |     +-----------+
++---------------+         +---------------+   +-----> Scheduler |
+|               |         |               |   |     +-----------+
+| Actor System  +---------> Actor Runtime +---+
+|               |         |               |   |     +-----------+
++---------------+         +---------------+   +-----> Scheduler |
+                                              |     +-----------+
+                                              |
+                                              |     +-----------+
+                                              +-----> Scheduler |
+                                              |     +-----------+
+                                              |
+                                              |     +-----------+
+                                              +-----> Scheduler |
+                                                    +-----------+
+```
+
+The `ActorSystem` is simply a handle to the `ActorRuntime`, which exists _somewhere_.
+The `Scheduler` is responsible for the management of a single thread and is essentially
+an actor-specific event-loop. `ActorRuntime` must run on one of the schedulers or on
+it's own thread.
+
+Before I can nail down _where_ the actors live within this ownership model, I need to
+consider the message passing flow and how addresses _ideally_ work within my actor
+system. Addresses need to handle some notion of the contract which the actor defines.
+This means knowing what messages are valid and what aren't. Addresses then end up looking
+like:
+
+```rust
+let address: ActorAddress<SomeActor> = ...
+// this would look like:
+struct ActorAddress<A> {}
+
+impl ActorAddress<A> {
+    pub fn send<M>(msg: M) where A: Receives<M>;
+}
+```
+
+However, that means that 
