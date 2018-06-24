@@ -173,5 +173,3 @@ impl ActorAddress<A> {
     pub fn send<M>(msg: M) where A: Receives<M>;
 }
 ```
-
-However, that means that 
