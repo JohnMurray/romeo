@@ -1,0 +1,9 @@
+[package]
+name = "romeo-test"
+version = "0.1.0"
+authors = ["John Murray <me@johnmurray.io>"]
+description = "--"
+license = "Apache-2.0"
+
+[dependencies.romeo]
+path = "../romeo"
