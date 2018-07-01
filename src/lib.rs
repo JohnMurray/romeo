@@ -1,81 +1,110 @@
+#![allow(dead_code)]
+
 #[macro_use] extern crate log;
 
 pub mod romeo {
 
     use std::result::Result;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Mutex, mpsc};
     use std::collections::HashMap;
     use std::clone::Clone;
-    use std::fmt::{Display, Formatter};
-    use std;
+    use std::fmt::Display;
+    use std::marker::PhantomData;
 
+    /// Props is the "properties" or values needed to construct an instance of
+    /// an actor. It is necessary along with `ActorConstructable` to ensure that
+    /// actors can be (re)created/started as needed throughout the lifetime of
+    /// the actor system.
     pub trait Props {}
 
+    /// ActorConstructable defines a constructor that uses `Props` in order to
+    /// create an instance of an Actor.
+    /// TODO: Should all actors be created on the heap?
     pub trait ActorConstructable<P>
         where P: Props
     {
         fn new(p: &P) -> Self;
     }
 
-    pub struct ActorAddress<A> {
-        actor: A
+    /// ActorCell is the container for the actor. It manages the mailbox for the
+    /// actor as well as managing the necessary data of the actor lifecycle (such
+    /// as props to construct the actor). For each actor instance, there is exactly
+    /// one cell.
+    pub struct ActorCell<A: 'static, P: 'static, M: 'static>
+        where A: ActorConstructable<P>,
+              P: Props,
+              A: Receives<M>,
+    {
+        actor: Box<A>,
+        props: P,
+        mailbox: mpsc::Receiver<M>,
+        writer: mpsc::Sender<M>,
     }
-    pub trait Receives<A> {
-        fn send(&mut self, msg: A);
+    impl<A, P, M> ActorCell<A, P, M>
+        where A: ActorConstructable<P>,
+              P: Props,
+              A: Receives<M>,
+    {
+        fn new(props: P) -> Self {
+            let (sender, receiver) = mpsc::channel::<M>();
+            ActorCell {
+                actor: Box::new(A::new(&props)),
+                props: props,
+                mailbox: receiver,
+                writer: sender,
+            }
+        }
+
+        fn address(&self) -> ActorAddress<A, M> {
+            ActorAddress {
+                sender: self.writer.clone(),
+                _phantom: PhantomData
+            }
+        }
+    }
+    trait ACell {
+        fn try_receive(&mut self) -> bool;
+    }
+    impl<A, P, M> ACell for ActorCell<A, P, M>
+        where A: ActorConstructable<P>,
+              P: Props,
+              A: Receives<M>,
+    {
+        fn try_receive(&mut self) -> bool {
+            match self.mailbox.try_recv() {
+                Ok(msg) => true,
+                _       => false,
+            }
+        }
+    }
+
+    /// Address is like an actor ref. It contains a reference to the actor
+    ///
+    pub struct ActorAddress<A, M>
+        where A: Receives<M>
+    {
+        sender: mpsc::Sender<M>,
+        _phantom: PhantomData<A>,
+    }
+    impl<A, M> ActorAddress<A, M>
+        where A: Receives<M>,
+    {
+        pub fn send(&self, msg: M)
+        {
+            self.sender.send(msg).unwrap();
+        }
     }
     pub trait Addressable<A> {
         fn send<M>(&self, msg: M)
             where A: Receives<M>,
                   M: Display;
     }
-    pub struct ActorCell<A> {
-        actor: A
+
+    pub trait Receives<A> {
+        fn send(&mut self, msg: A);
     }
 
 
-    //--- Test using above code, as verification it works
-    struct TestActor {
-        count: u8
-    }
-    impl Clone for TestActor {
-        fn clone(&self) -> Self {
-            TestActor { count: self.count }
-        }
-    }
-    impl Display for TestActor {
-        fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-            write!(f, "TestActor[ count: {0} ]", self.count)
-        }
-    }
-    impl Props for TestActor {}
-    impl ActorConstructable<TestActor> for TestActor {
-        fn new(a: &TestActor) -> TestActor {
-            return (*a).clone()
-        }
-    }
-    impl Receives<u8> for TestActor {
-        // TODO: I don't have an instance of TestActor here, this is useless
-        fn send(&mut self, msg: u8) {
-            self.count += msg;
-        }
-    }
-    impl Addressable<TestActor> for ActorAddress<TestActor> {
-        fn send<M>(&self, msg: M)
-            where TestActor: Receives<M>,
-                  M: Display,
-        {
-            println!("Received {0} for {1}", msg, &self.actor);
-        }
-    }
-
-    fn main() {
-        let props = TestActor { count: 5 };
-        let address = ActorAddress { actor: TestActor::new(&props) };
-        let x: u8 = 10;
-        address.send(x);
-        println!("Count: {0}", address.actor.count);
-    }
-    //---
 
     /// System is a handler to the actor-runtime. It does nothing more than contain
     /// a reference to the actual runtime. Since Actors implicitly live within a
@@ -104,12 +133,18 @@ pub mod romeo {
             Ok(())
         }
 
-        pub fn actor<A, P>(name: &String, props: &P) -> ActorAddress<A>
-        where
-            A: ActorConstructable<P>,
-            P: Props,
+        pub fn actor<A: 'static, P: 'static, M: 'static>(&mut self, name: String, props: P) -> ActorAddress<A, M>
+            where A: ActorConstructable<P>,
+                  P: Props,
+                  A: Receives<M>
         {
-            ActorAddress { actor: A::new(props) }
+            let mut runtime = self.runtime.lock().unwrap();
+
+            let cell = Box::new(ActorCell::new(props));
+            let address = cell.address();
+            runtime.store_actor_cell(name, cell);
+
+            address
         }
     }
 
@@ -119,7 +154,7 @@ pub mod romeo {
     struct SystemRuntime {
         name: String,
         running: bool,
-        // actorRegistry: HashMap<String, ActorCell<_>>
+        actor_registry: HashMap<String, Box<ACell>>,
     }
 
     impl SystemRuntime {
@@ -127,7 +162,7 @@ pub mod romeo {
             SystemRuntime {
                 name: name.clone(),
                 running: false,
-                // actorRegistry: HashMap::new(),
+                actor_registry: HashMap::new(),
             }
         }
 
@@ -143,6 +178,10 @@ pub mod romeo {
             self.running = true;
             // TODO: spawn some threads, each with what is essentially an event-loop scheduler.
             // Make look into tokio for providing the event-loop.
+        }
+
+        pub fn store_actor_cell(&mut self, name: String, ac: Box<ACell>) {
+            self.actor_registry.insert(name, ac);
         }
     }
 }
