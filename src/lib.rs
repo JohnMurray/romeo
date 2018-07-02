@@ -37,8 +37,8 @@ pub mod romeo {
     {
         actor: Box<A>,
         props: P,
-        mailbox: mpsc::Receiver<M>,
-        writer: mpsc::Sender<M>,
+        mailbox: mpsc::Receiver<Message<A, P, M>>,
+        writer: mpsc::Sender<Message<A, P, M>>,
     }
     impl<A, P, M> ActorCell<A, P, M>
         where A: ActorConstructable<P>,
@@ -46,7 +46,7 @@ pub mod romeo {
               A: Receives<M>,
     {
         fn new(props: P) -> Self {
-            let (sender, receiver) = mpsc::channel::<M>();
+            let (sender, receiver) = mpsc::channel::<Message<A, P, M>>();
             ActorCell {
                 actor: Box::new(A::new(&props)),
                 props: props,
@@ -55,9 +55,14 @@ pub mod romeo {
             }
         }
 
-        fn address(&self) -> ActorAddress<A, M> {
+        fn receive(&mut self, msg: M) {
+            self.receive(msg);
+        }
+
+        fn address(&self) -> ActorAddress<A, P, M> {
             ActorAddress {
                 sender: self.writer.clone(),
+                cell: self,
                 _phantom: PhantomData
             }
         }
@@ -78,19 +83,52 @@ pub mod romeo {
         }
     }
 
+    // A message represents a self-contained executable unit
+    struct Message<A: 'static, P: 'static, M: 'static>
+        where A: ActorConstructable<P>,
+              P: Props,
+              A: Receives<M>,
+    {
+        cell: ActorCell<A, P, M>,
+        msg: M,
+    }
+    impl<A, P, M> Message<A, P, M>
+        where A: ActorConstructable<P>,
+        P: Props,
+        A: Receives<M>,
+    {
+        fn new(msg: M, cell: ActorCell<A, P, M>) -> Self {
+            Message {
+                cell: cell,
+                msg: msg,
+            }
+        }
+
+        fn process(mut self) -> bool {
+            self.cell.receive(self.msg);
+            true
+        }
+    }
+
     /// Address is like an actor ref. It contains a reference to the actor
     ///
-    pub struct ActorAddress<A, M>
-        where A: Receives<M>
+    pub struct ActorAddress<A: 'static, P: 'static, M: 'static>
+        where A: ActorConstructable<P>,
+              P: Props,
+              A: Receives<M>,
     {
-        sender: mpsc::Sender<M>,
+        sender: mpsc::Sender<Message<A, P, M>>,
+        cell: &'static ActorCell<A, P, M>,
         _phantom: PhantomData<A>,
     }
-    impl<A, M> ActorAddress<A, M>
-        where A: Receives<M>,
+    impl<A, P, M> ActorAddress<A, P, M>
+        where A: ActorConstructable<P>,
+              P: Props,
+              A: Receives<M>,
     {
         pub fn send(&self, msg: M)
         {
+            let message = Message::new(msg, self.cell);
             self.sender.send(msg).unwrap();
         }
     }
@@ -133,7 +171,7 @@ pub mod romeo {
             Ok(())
         }
 
-        pub fn actor<A: 'static, P: 'static, M: 'static>(&mut self, name: String, props: P) -> ActorAddress<A, M>
+        pub fn actor<A: 'static, P: 'static, M: 'static>(&mut self, name: String, props: P) -> ActorAddress<A, P, M>
             where A: ActorConstructable<P>,
                   P: Props,
                   A: Receives<M>

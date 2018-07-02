@@ -1,11 +1,13 @@
 use std::sync::mpsc;
 
-trait ActorTrait {
+trait Printer {
     fn print<M>(&mut self, val: M)
         where Self: Prints<M>;
 }
-struct Actor {}
-impl ActorTrait for Actor {
+
+struct SimplePrinter {}
+
+impl Printer for SimplePrinter {
     fn print<M>(&mut self, val: M)
         where Self: Prints<M>,
     {
@@ -17,17 +19,12 @@ trait Prints<U> {
     fn print(&self, val: U);
 }
 
-impl Prints<u8> for Actor {
+impl Prints<u8> for SimplePrinter {
     fn print(&self, val: u8) {
         println!("u8: {0}", val);
     }
 }
-impl Prints<f64> for Actor {
-    fn print(&self, val: f64) {
-        println!("f64: {0}", val);
-    }
-}
-impl Prints<bool> for Actor {
+impl Prints<bool> for SimplePrinter {
     fn print(&self, val: bool) {
         if val {
             println!("bool: true");
@@ -38,53 +35,48 @@ impl Prints<bool> for Actor {
 }
 
 /// Need `Message` so that I can store `Box<Message>` as the type
-/// in the actor queue (mailbox)
-trait Message {}
-impl Message for u8   {}
-impl Message for f64  {}
-impl Message for bool {}
+/// in the PrintManager::queue
+trait Message {
+    type Underlying;
+}
+impl Message for u8   {
+    type Underlying = u8;
+}
+impl Message for bool {
+    type Underlying = bool;
+}
 
-struct Runtime<A>
-    where A: ActorTrait
+struct PrintManager<P, M>
+    where P: Printer,
+          P: Prints<M>,
+          M: Message::Underlying,
 {
-    actor: A,
-    mailbox: mpsc::Receiver<Box<Message>>,
+    printer: P,
+    queue: mpsc::Receiver<Box<Message>>,
     writer: mpsc::Sender<Box<Message>>,
 }
 
-impl<A> Runtime<A>
-    where A: ActorTrait
+impl<P> PrintManager<P>
+    where P: Printer
 {
-    // This is what I like to call "reverse" dynamic dispatch. In that the correct
-    // function on _actor_ needs to be called depending on the value-type retrieved
-    // from the mailbox (queue).
-    // 
-    // The problem is, this doesn't work, which means I need to re-think how to dispatch
-    // the appropriate receiver for a given message.
-    // Ideas:
-    //  - pair the receiver as a lambda with the data, or just store the lambda itself,
-    //    pre-paired with the data when all the types are known (within the address obj).
-    //  - use multiple queues depending on the receivers
-    //    -> Global ordering would be the main challenge, and dynamically generating
-    //       the queues within the ActorCell.
-    pub fn process(&mut self) {
-        match self.mailbox.try_recv() {
-            Ok(msg) => self.actor.print(msg),
+    pub fn do_print(&mut self) {
+        match self.queue.try_recv() {
+            Ok(msg) => self.printer.print(msg),
             _       => (),
         }
     }
 
-    fn new (a: A) -> Self {
+    fn new (p: P) -> Self {
         let (tx, rx) = mpsc::channel::<Box<Message>>();
-        Runtime {
-            actor: a,
-            mailbox: rx,
+        PrintManager {
+            printer: p,
+            queue: rx,
             writer: tx,
         }
     }
 
-    fn send<M: 'static>(&mut self, msg: M)
-        where A: Prints<M>,
+    fn submit_job<M: 'static>(&mut self, msg: M)
+        where P: Prints<M>,
               M: Message,
     {
         self.writer.send(Box::new(msg)).unwrap();
@@ -92,11 +84,10 @@ impl<A> Runtime<A>
 }
 
 fn main() {
-    // Cannot infer type for M... so that means that the monomorphization doesn't
-    // automatically expand to find all types for M in which `A: Prints<M>` is valid.
-    let r = Runtime::new(Actor{});
-    // r.send(1u8);
-    // r.send(3.04f64);
-    // r.send(false);
-    // r.process();
+    let pm = PrintManager::new(SimplePrinter{});
+    pm.submit_job(1u8);
+    pm.submit_job(false);
+
+    pm.do_print();
+    pm.do_print();
 }
