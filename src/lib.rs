@@ -25,8 +25,8 @@ pub trait Actor {
 // Constructor Traits
 // ---
 pub trait Props {}
-pub trait ActorConstructable<A: Actor, P: Props> {
-    fn new(props: &P) -> A;
+pub trait ActorConstructable<P: Props>: Actor {
+    fn new(props: &P) -> Self;
 }
 
 // ---
@@ -155,7 +155,7 @@ impl Runtime {
     }
 
     pub fn new_actor<A, P>(&self, props: P) -> Arc<Cell<A>>
-        where A: Actor + ActorConstructable<A, P> + 'static,
+        where A: Actor + ActorConstructable<P> + 'static,
               P: Props + 'static,
     {
         let producer = Box::new(move || {
