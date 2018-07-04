@@ -38,21 +38,21 @@ pub struct Cell<A: Actor> {
     pub msg_queue: Mutex<RefCell<VecDeque<Box<FnBox()>>>>,
 }
 impl<A: Actor + 'static> Cell<A> {
-    fn new(actor_producer: Box<Fn() -> A>) -> Arc<Box<Self>> {
+    fn new(actor_producer: Box<Fn() -> A>) -> Arc<Self> {
         // TODO: does the Cell need to be an Arc? Or can it just hand out weak references from
         //       a Box<T>
-        Arc::new(Box::new(Cell{
+        Arc::new(Cell{
             actor: RefCell::new(actor_producer()),
             actor_producer,
             msg_queue: Mutex::new(RefCell::new(VecDeque::new())),
-        }))
+        })
     }
 
     fn actor_ref(&self) -> RefMut<A> {
         self.actor.borrow_mut()
     }
 
-    pub fn address(cell: Arc<Box<Self>>) -> Address<A> {
+    pub fn address(cell: Arc<Self>) -> Address<A> {
         Address::new(Arc::downgrade(&cell))
     }
 
@@ -94,10 +94,10 @@ pub trait Receives<M>
 // Address
 // ---
 pub struct Address<A: Actor> {
-    cell_ref: Weak<Box<Cell<A>>>,
+    cell_ref: Weak<Cell<A>>,
 }
 impl<A: Actor + 'static> Address<A> {
-    fn new(cell: Weak<Box<Cell<A>>>) -> Self {
+    fn new(cell: Weak<Cell<A>>) -> Self {
         Address {
             cell_ref: cell,
         }
@@ -126,51 +126,54 @@ impl<A: Actor + 'static> Address<A> {
 //   What would typically be defined on the actor system
 //   but that we're doing very bare-bones for now.
 // ---
-pub fn new_actor<A: 'static, P>(props: P) -> Arc<Box<Cell<A>>>
-    where A: Actor + ActorConstructable<A, P>,
-          P: Props + 'static,
-{
-    let producer = Box::new(move || {
-        A::new(&props)
-    });
-    Cell::new(producer)
-}
+// pub fn new_actor<A: 'static, P>(props: P) -> Arc<Box<Cell<A>>>
+//     where A: Actor + ActorConstructable<A, P>,
+//           P: Props + 'static,
+// {
+//     let producer = Box::new(move || {
+//         A::new(&props)
+//     });
+//     Cell::new(producer)
+// }
 
 // ---
 // Runtime/System
 // ---
 pub struct Runtime {
-    cells: Vec<Arc<Box<ACell>>>,
+    cells: Mutex<RefCell<Vec<Arc<ACell>>>>,
 }
 impl Runtime {
     pub fn new() -> Runtime {
         Runtime {
-            cells: Vec::new(),
+            cells: Mutex::new(RefCell::new(Vec::new())),
         }
     }
 
-    pub fn add_cell(&mut self, cell: Arc<Box<ACell>>) {
-        self.cells.push(cell);
+    pub fn add_cell(&self, cell: Arc<ACell>) {
+        let cells = self.cells.lock().unwrap();
+        cells.borrow_mut().push(cell);
     }
 
-    // pub fn new_actor<A, P>(props: P) -> Arc<RefCell<Box<Cell<A>>>>
-    //     where A: Actor + ActorConstructable<A, P> + 'static,
-    //           P: Props + 'static,
-    // {
-    //     let producer = Box::new(move || {
-    //         A::new(&props)
-    //     });
-    //     let cell = Cell::new2(producer);
-    //     let acell: Box<ACell> = cell;
-    //     ()
-    // }
+    pub fn new_actor<A, P>(&self, props: P) -> Arc<Cell<A>>
+        where A: Actor + ActorConstructable<A, P> + 'static,
+              P: Props + 'static,
+    {
+        let producer = Box::new(move || {
+            A::new(&props)
+        });
+        let cell: Arc<Cell<A>> = Cell::new(producer);
+        self.add_cell(cell.clone());
+        cell
+    }
 
     // simple, single-threaded, blocking event-loop runtime
-    pub fn start(&mut self) {
+    pub fn start(&self) {
         loop {
-            self.cells.iter().for_each(|cell| {
+            let cells = self.cells.lock().unwrap();
+            cells.borrow().iter().for_each(|cell| {
                 cell.process();
             });
+            drop(cells);
             thread::sleep(time::Duration::from_millis(1000));
             println!("completed iteration");
         }

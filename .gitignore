@@ -1,4 +1,8 @@
+# Editor Files
 .idea/
+*.swp
+
+# Build Artifacts
 **/target/
 **/*.rs.bk
 Cargo.lock
