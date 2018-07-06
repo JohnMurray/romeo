@@ -22,9 +22,9 @@ struct AccountingActor {
   balance: i64,
 }
 
+#[actor_new(construct)]
 impl AccountingActor {
-  #[actor_new]
-  fn new(balance: i64) -> Self {
+  fn construct(balance: i64) -> Self {
     AccountingActor {
       balance
     }
@@ -32,7 +32,11 @@ impl AccountingActor {
 }
 ```
 
-And creating a new actor would be as simple as:
+The `#[actor_new]` annotation accepts a parameter of the function name that
+takes any number of parameters and returns an instance of the actor. Typically
+the name will likely be `new`, but should be flexible for varying styles.
+
+Creating a new actor would be as simple as:
 
 ```rust
 let runtime = Runtime::new(/* ... */);
@@ -46,7 +50,10 @@ fields for `Props` are both defined and constructedin the order declared).
 struct AccountingActor {
   balance: i64,
 }
-impl AccountingActor { /* empty (in this example) */ }
+impl AccountingActor {
+  // user-defined function still exists, just not used
+  fn construct(...) -> Self { ... }
+}
 
 // generated code
 struct AccountingActorProps {
