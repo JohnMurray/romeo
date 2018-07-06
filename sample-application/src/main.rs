@@ -1,5 +1,6 @@
 extern crate romeo;
 use romeo::*;
+use romeo::actor::*;
 
 struct AccountingActor {
     balance: i32,
@@ -36,8 +37,8 @@ impl Receives<u8> for AccountingActor {
 fn main() {
     let runtime = Runtime::new();
 
-    let cell = runtime.new_actor::<AccountingActor, AccountingProps>(AccountingProps { starting_balance: 1 });
-    let mut address = Cell::address(cell.clone());
+    let address = runtime.new_actor::<AccountingActor, AccountingProps>(AccountingProps { starting_balance: 1 });
+    // let mut address = Cell::address(cell.clone());
     address.send(32u8); 
 
     runtime.start();

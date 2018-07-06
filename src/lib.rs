@@ -1,125 +1,18 @@
 #![feature(fnbox)]
 #![allow(dead_code)]
 
-use std::boxed::FnBox;
-use std::cell::{RefCell, RefMut};
-use std::collections::{VecDeque};
-use std::ops::Fn;
-use std::sync::{Arc, Weak, Mutex};
+pub mod actor;
+pub mod address;
+pub mod cell;
+
+pub use actor::{Actor, Receives};
+use actor::{ActorConstructable, Props};
+pub use address::Address;
+use cell::{Cell, ACell};
+
+use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
 use std::{time, thread};
-
-// ---
-// Base Actor Definition
-// ---
-pub trait Actor {
-    fn start();
-    fn pre_stop();
-}
-// This doesn't allow for overrides... hrmm...
-// impl<A> Actor for A { // default impl
-//     fn start() {}
-//     fn pre_stop() {}
-// }
-
-// ---
-// Constructor Traits
-// ---
-pub trait Props {}
-pub trait ActorConstructable<P: Props>: Actor {
-    fn new(props: &P) -> Self;
-}
-
-// ---
-// Cell
-// ---
-pub struct Cell<A: Actor> {
-    actor: RefCell<A>,
-    actor_producer: Box<Fn() -> A>,
-    pub msg_queue: Mutex<RefCell<VecDeque<Box<FnBox()>>>>,
-}
-impl<A: Actor + 'static> Cell<A> {
-    fn new(actor_producer: Box<Fn() -> A>) -> Arc<Self> {
-        // TODO: does the Cell need to be an Arc? Or can it just hand out weak references from
-        //       a Box<T>
-        Arc::new(Cell{
-            actor: RefCell::new(actor_producer()),
-            actor_producer,
-            msg_queue: Mutex::new(RefCell::new(VecDeque::new())),
-        })
-    }
-
-    fn actor_ref(&self) -> RefMut<A> {
-        self.actor.borrow_mut()
-    }
-
-    pub fn address(cell: Arc<Self>) -> Address<A> {
-        Address::new(Arc::downgrade(&cell))
-    }
-
-    fn receive(&self, f: Box<FnBox()>) {
-        let msg_queue = self.msg_queue.lock().unwrap();
-        msg_queue.borrow_mut().push_back(f);
-    }
-}
-
-// ---
-// ACell, a parameter-type-less cell for the runtime
-// ---
-pub trait ACell {
-    fn process(&self) -> bool;
-}
-impl<A: Actor + 'static> ACell for Cell<A> {
-
-    fn process(&self) -> bool {
-        let msg_queue = self.msg_queue.lock().unwrap();
-        if let Some(f) = msg_queue.borrow_mut().pop_front() {
-            f();
-            return true
-        }
-        false
-    }
-}
-
-// ---
-// Message Handling
-// ---
-pub trait Receives<M>
-    where Self: Actor,
-{
-    // TODO: should return something, because need to know about failures
-    fn receive(&mut self, msg: M);
-}
-
-// ---
-// Address
-// ---
-pub struct Address<A: Actor> {
-    cell_ref: Weak<Cell<A>>,
-}
-impl<A: Actor + 'static> Address<A> {
-    fn new(cell: Weak<Cell<A>>) -> Self {
-        Address {
-            cell_ref: cell,
-        }
-    }
-
-    pub fn send<M: 'static>(&mut self, msg: M)
-        where A: Receives<M>
-    {
-        if let Some(cell) = Weak::upgrade(&self.cell_ref) {
-            let lambda_cell = cell.clone();
-            let receive: Box<FnBox()> = Box::new(move || -> () {
-                let mut act = lambda_cell.actor_ref();
-                act.receive(msg);
-            });
-            cell.receive(receive);
-        } else {
-            // TODO: raise some kind of error if the address is no longer valid (the cell
-            //       it points to not longer exists)
-        }
-        // TODO: Need to wrap this in a mutex to ensure serial access to the mutable reference
-    }
-}
 
 // ---
 // Public Interface
@@ -140,21 +33,21 @@ impl<A: Actor + 'static> Address<A> {
 // Runtime/System
 // ---
 pub struct Runtime {
-    cells: Mutex<RefCell<Vec<Arc<ACell>>>>,
+    cells: Mutex<Vec<Arc<ACell>>>,
 }
 impl Runtime {
     pub fn new() -> Runtime {
         Runtime {
-            cells: Mutex::new(RefCell::new(Vec::new())),
+            cells: Mutex::new(Vec::new()),
         }
     }
 
-    pub fn add_cell(&self, cell: Arc<ACell>) {
-        let cells = self.cells.lock().unwrap();
-        cells.borrow_mut().push(cell);
+    pub(crate) fn add_cell(&self, cell: Arc<ACell>) {
+        let mut cells = self.cells.lock().unwrap();
+        cells.push(cell);
     }
 
-    pub fn new_actor<A, P>(&self, props: P) -> Arc<Cell<A>>
+    pub fn new_actor<A, P>(&self, props: P) -> Address<A>
         where A: Actor + ActorConstructable<P> + 'static,
               P: Props + 'static,
     {
@@ -163,14 +56,14 @@ impl Runtime {
         });
         let cell: Arc<Cell<A>> = Cell::new(producer);
         self.add_cell(cell.clone());
-        cell
+        Cell::address(cell)
     }
 
     // simple, single-threaded, blocking event-loop runtime
     pub fn start(&self) {
         loop {
-            let cells = self.cells.lock().unwrap();
-            cells.borrow().iter().for_each(|cell| {
+            let mut cells = self.cells.lock().unwrap();
+            cells.iter().for_each(|cell| {
                 cell.process();
             });
             drop(cells);
