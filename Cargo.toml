@@ -1,6 +1,6 @@
 [package]
 name = "romeo"
-version = "0.0.2" # don't forget to update html root_url
+version = "0.0.3" # don't forget to update html root_url
 authors = ["John Murray <me@johnmurray.io>"]
 description = "An experimental actor framework for plug-able behaviors"
 repository = "https://github.com/johnmurray/romeo"
