@@ -1,9 +1,14 @@
+use super::actor::{Actor, ActorConstructable, Props};
+use super::address::Address;
+use super::cell::Cell;
 use super::scheduler::Scheduler;
 
+use std::fmt::{self, Display, Formatter};
 use std::sync::Arc;
 use std::thread;
 
 use num_cpus;
+use rand::{thread_rng, Rng, ThreadRng};
 
 /// System is the main handle into a running actor system. It is responsible for creating
 /// actors, starting the system (spawning threads and schedulers), stopping the system, etc.
@@ -12,6 +17,7 @@ pub struct System {
     thread_schedulers: Vec<Arc<Scheduler>>,
     config: Config,
     state: RunningState,
+    rng: ThreadRng,
 }
 
 impl System {
@@ -21,6 +27,7 @@ impl System {
             thread_schedulers: vec![],
             config: Config::default(),
             state: RunningState::AwaitingStart,
+            rng: thread_rng(),
         }
     }
 
@@ -28,7 +35,33 @@ impl System {
         self.config = config;
     }
 
+    pub fn new_actor<A, P>(&mut self, props: P) -> Address<A>
+    where
+        A: Actor + ActorConstructable<P> + 'static,
+        P: Props + 'static,
+    {
+        // If we're not running, we can't create actors. Sorry
+        if self.state != RunningState::Running {
+            panic!(
+                "Cannot create actors on a runtime that is not started, currently in state {}",
+                self.state
+            );
+        }
+
+        // Create the actor-cell
+        let producer = Box::new(move || A::new(&props));
+        let cell: Arc<Cell<A>> = Cell::new(producer);
+
+        // Hand the cell over to a random scheduler
+        let scheduler_index = Rng::gen_range(&mut self.rng, 0, self.thread_schedulers.len());
+        self.thread_schedulers[scheduler_index].add_cell(cell.clone());
+
+        // Return an address (handle to communicate with the actor in the cell)
+        Cell::address(cell)
+    }
+
     pub fn spawn(&mut self) {
+        // Spawn threads and schedulers
         for _ in 0..self.config.threads {
             let scheduler = Arc::new(Scheduler::new());
             self.thread_schedulers.push(scheduler.clone());
@@ -37,6 +70,7 @@ impl System {
                 scheduler.start();
             }));
         }
+        // TODO: send all schedulers to each other (for reporting / work-stealing)
     }
 
     pub fn graceful_shutdown(self) {
@@ -54,12 +88,30 @@ impl System {
 
 unsafe impl Send for System {}
 
+#[derive(PartialEq, Eq)]
 enum RunningState {
-    AwaitingStart,
+    AwaitingStart = 0,
     Starting,
     Running,
     Stopping,
     Stopped,
+}
+impl Display for RunningState {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        if self == &RunningState::AwaitingStart {
+            write!(f, "awaiting-start")
+        } else if self == &RunningState::Starting {
+            write!(f, "starting")
+        } else if self == &RunningState::Running {
+            write!(f, "running")
+        } else if self == &RunningState::Stopping {
+            write!(f, "stopping")
+        } else if self == &RunningState::Stopped {
+            write!(f, "stopped")
+        } else {
+            Ok(())
+        }
+    }
 }
 
 /// Config is the configuration for the `System` and can be specified with `System::with_config`.

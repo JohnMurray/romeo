@@ -13,3 +13,4 @@ readme = "readme.md"
 [dependencies]
 log = "0.4"
 num_cpus = "1.8.0"
+rand = "0.5.3"

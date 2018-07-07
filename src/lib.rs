@@ -4,6 +4,7 @@
 #[macro_use]
 extern crate log;
 extern crate num_cpus;
+extern crate rand;
 
 pub mod actor;
 pub mod address;

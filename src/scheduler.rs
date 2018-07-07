@@ -1,6 +1,4 @@
-use super::actor::{Actor, ActorConstructable, Props};
-use super::address::Address;
-use super::cell::{ACell, Cell};
+use super::cell::ACell;
 
 use std::sync::{Arc, Mutex};
 use std::{thread, time};
@@ -21,17 +19,6 @@ impl Scheduler {
     pub(crate) fn add_cell(&self, cell: Arc<ACell>) {
         let mut cells = self.cells.lock().unwrap();
         cells.push(cell);
-    }
-
-    pub fn new_actor<A, P>(&self, props: P) -> Address<A>
-    where
-        A: Actor + ActorConstructable<P> + 'static,
-        P: Props + 'static,
-    {
-        let producer = Box::new(move || A::new(&props));
-        let cell: Arc<Cell<A>> = Cell::new(producer);
-        self.add_cell(cell.clone());
-        Cell::address(cell)
     }
 
     // simple, single-threaded, blocking event-loop runtime
