@@ -12,13 +12,12 @@ pub struct Address<A: Actor> {
 }
 impl<A: Actor + 'static> Address<A> {
     pub(crate) fn new(cell: Weak<Cell<A>>) -> Self {
-        Address {
-            cell_ref: cell,
-        }
+        Address { cell_ref: cell }
     }
 
     pub fn send<M: 'static>(&self, msg: M)
-        where A: Receives<M>
+    where
+        A: Receives<M>,
     {
         if let Some(cell) = Weak::upgrade(&self.cell_ref) {
             let lambda_cell = cell.clone();

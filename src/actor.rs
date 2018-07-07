@@ -2,8 +2,8 @@
 // Base Actor Definition
 // ---
 pub trait Actor: Send + Sync {
-    fn start();
-    fn pre_stop();
+    fn start() {}
+    fn pre_stop() {}
 }
 
 // ---
@@ -18,7 +18,8 @@ pub trait ActorConstructable<P: Props>: Actor {
 // Message Handling
 // ---
 pub trait Receives<M>
-    where Self: Actor,
+where
+    Self: Actor,
 {
     // TODO: should return something, because need to know about failures
     fn receive(&mut self, msg: M);

@@ -2,8 +2,8 @@ use super::actor::Actor;
 use super::address::Address;
 
 use std::boxed::FnBox;
-use std::sync::{Arc, Mutex};
 use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
 
 // ---
 // Cell
@@ -16,7 +16,7 @@ pub(crate) struct Cell<A: Actor> {
 
 impl<A: Actor + 'static> Cell<A> {
     pub(crate) fn new(actor_producer: Box<Fn() -> A>) -> Arc<Self> {
-        Arc::new(Cell{
+        Arc::new(Cell {
             actor: Arc::new(Mutex::new(actor_producer())),
             actor_producer,
             msg_queue: Mutex::new(VecDeque::new()),
@@ -47,12 +47,11 @@ pub(crate) trait ACell: Send + Sync {
     fn process(&self) -> bool;
 }
 impl<A: Actor + 'static> ACell for Cell<A> {
-
     fn process(&self) -> bool {
         let mut msg_queue = self.msg_queue.lock().unwrap();
         if let Some(f) = msg_queue.pop_front() {
             f();
-            return true
+            return true;
         }
         false
     }

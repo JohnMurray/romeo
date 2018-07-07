@@ -3,17 +3,17 @@ use super::address::Address;
 use super::cell::{ACell, Cell};
 
 use std::sync::{Arc, Mutex};
-use std::{time, thread};
+use std::{thread, time};
 
-// ---
-// Runtime/System
-// ---
-pub struct Runtime {
+/// The Scheduler is responsible for scheduling execution of messages over actors for
+/// a single thread. It also keeps references to underlying cells in order to proccess
+/// messages and handle lifecycle events.
+pub struct Scheduler {
     cells: Mutex<Vec<Arc<ACell>>>,
 }
-impl Runtime {
-    pub fn new() -> Runtime {
-        Runtime {
+impl Scheduler {
+    pub fn new() -> Scheduler {
+        Scheduler {
             cells: Mutex::new(Vec::new()),
         }
     }
@@ -24,12 +24,11 @@ impl Runtime {
     }
 
     pub fn new_actor<A, P>(&self, props: P) -> Address<A>
-        where A: Actor + ActorConstructable<P> + 'static,
-              P: Props + 'static,
+    where
+        A: Actor + ActorConstructable<P> + 'static,
+        P: Props + 'static,
     {
-        let producer = Box::new(move || {
-            A::new(&props)
-        });
+        let producer = Box::new(move || A::new(&props));
         let cell: Arc<Cell<A>> = Cell::new(producer);
         self.add_cell(cell.clone());
         Cell::address(cell)
