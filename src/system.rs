@@ -61,6 +61,7 @@ impl System {
     }
 
     pub fn spawn(&mut self) {
+        self.state = RunningState::Starting;
         // Spawn threads and schedulers
         for _ in 0..self.config.threads {
             let scheduler = Arc::new(Scheduler::new());
@@ -70,6 +71,7 @@ impl System {
                 scheduler.start();
             }));
         }
+        self.state = RunningState::Running;
         // TODO: send all schedulers to each other (for reporting / work-stealing)
     }
 
