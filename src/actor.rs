@@ -1,7 +1,7 @@
 // ---
 // Base Actor Definition
 // ---
-pub trait Actor: Send + Sync{
+pub trait Actor: Send + Sync {
     fn start();
     fn pre_stop();
 }
