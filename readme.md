@@ -1,84 +1,30 @@
 # Romeo
 
 Romeo is an experimental actor framework for Rust. At this point
-it is nothing more than a research project for myself. If it
-becomes something more serious, I'll update this readme indicating
-as much. Until then, no support will be given to anyone who wishes to
-use it. Beyond this are notes for myself.
+it is nothing more than a research project for myself. So go away. `-__-`
 
-<hr />
+## More Information
+Still here? Okay, well I'll keep talking. The eventual goal is to create a
+distributed actor framework with plug-able behaviors. What do I mean by that?
+Well, firstly the goal is to get something that _can_ run on multiple machines
+and communicate across them. But once we get to this point, there are a lot of
+questions about how the distributed system should be built. What guarantees do
+I want to provide? How do I shard? How do I replicate? How do I get consensus
+and what do I need consensus on?
 
-## Ergonomic Improvements
+This project intends to make all of that plug-able so that user-defined implementations
+can be used and experimented with. The goal is to create an actor system that is
+customizable/tuneable to the end-users desires.
 
-### #1 - ActorConstructable & Props
-I think it's important to capture the ability to create actors
-without direct intervention of the user, but I really would hate
-if this interface would need to be exposed to the user of the library.
+Like I said at the beginning, this is currently just in the beginning phases of me
+designing the basic bits and getting everything _working_. Don't expect magic at the
+moment, or any real stability if you plan to play around with it. 
 
-A nicer interface would be:
+## Latest Progress
+Actors can be created, addressed, and communicated with (one way). A basic (mostly
+useless) blocking runtime exists to execute messages over actors. 
 
-```rust
-struct AccountingActor {
-  balance: i64,
-}
+## Currently Working On
 
-#[actor_new(construct)]
-impl AccountingActor {
-  fn construct(balance: i64) -> Self {
-    AccountingActor {
-      balance
-    }
-  }
-}
-```
-
-The `#[actor_new]` annotation accepts a parameter of the function name that
-takes any number of parameters and returns an instance of the actor. Typically
-the name will likely be `new`, but should be flexible for varying styles.
-
-Creating a new actor would be as simple as:
-
-```rust
-let runtime = Runtime::new(/* ... */);
-let actor: Address<AcccountingActor> = actor!(runtime, /* balance = */ 0);
-```
-
-These two examples would expand to the following code (note that the
-fields for `Props` are both defined and constructedin the order declared).
-
-```rust
-struct AccountingActor {
-  balance: i64,
-}
-impl AccountingActor {
-  // user-defined function still exists, just not used
-  fn construct(...) -> Self { ... }
-}
-
-// generated code
-struct AccountingActorProps {
-  balance: i64,
-}
-impl Props for AccountingActorProps {}
-impl ActorConstructable<AccountingActorProps> for AccountingActor {
-  fn new(props: &AccountingActorProps) -> Self {
-    AccountingActor {
-      balance: props.balance,
-    }
-  }
-}
-
-// creation code
-let runtime = Runtime::new(/* ... */);
-let actor: Address<AccountingActor> = runtime.new_actor<AccountingActor>(AccountingActorProps {
-  balance: 0,
-});
-```
-
-The main question (since I know nothing of macros yet) is weather or not `actor!`
-can pull from the declared (expected) type in the variable declaration or will
-instead need to be written like:
-
-```rust
-actor!(runtime, AccountingActor, 0);
-```
+The runtime needs to spin up threads to execute the system over and each thread needs
+a scheduler to check the inboxes of all actors it is responsible for. 
