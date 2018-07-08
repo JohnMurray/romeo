@@ -1,7 +1,5 @@
 
-# Romeo
-
-[![Crates.io](https://img.shields.io/crates/v/romeo.svg?style=flat-square)](https://crates.io/crates/romeo)
+# Romeo [![Crates.io](https://img.shields.io/crates/v/romeo.svg?style=flat-square)](https://crates.io/crates/romeo)
 
 Romeo is an experimental actor framework for Rust. At this point things are really
 rough and I'm still getting things ready for eventual use. So go away. `-__-`
