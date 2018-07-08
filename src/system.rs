@@ -63,11 +63,11 @@ impl System {
     pub fn spawn(&mut self) {
         self.state = RunningState::Starting;
         // Spawn threads and schedulers
-        for _ in 0..self.config.threads {
-            let scheduler = Arc::new(Scheduler::new());
+        for thread_id in 0..self.config.threads {
+            let scheduler = Arc::new(Scheduler::new(thread_id));
             self.thread_schedulers.push(scheduler.clone());
             self.thread_handles.push(thread::spawn(move || {
-                info!("Spawning scheduler on new thread");
+                println!("Spawning scheduler on new thread");
                 scheduler.start();
             }));
         }

@@ -42,5 +42,7 @@ fn main() {
     // let mut address = Cell::address(cell.clone());
     address.send(32u8); 
 
-    system.graceful_shutdown();
+    // system.graceful_shutdown();
+    use std::thread;
+    loop { thread::sleep_ms(100); }
 }

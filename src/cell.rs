@@ -2,8 +2,9 @@ use super::actor::Actor;
 use super::address::Address;
 
 use std::boxed::FnBox;
-use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
+
+use crossbeam_channel as channel;
 
 // ---
 // Cell
@@ -11,15 +12,18 @@ use std::sync::{Arc, Mutex};
 pub(crate) struct Cell<A: Actor> {
     actor: Arc<Mutex<A>>,
     actor_producer: Box<Fn() -> A>,
-    pub msg_queue: Mutex<VecDeque<Box<FnBox()>>>,
+    mailbox: channel::Receiver<Box<FnBox()>>,
+    postman: channel::Sender<Box<FnBox()>>,
 }
 
 impl<A: Actor + 'static> Cell<A> {
     pub(crate) fn new(actor_producer: Box<Fn() -> A>) -> Arc<Self> {
+        let (tx, rx) = channel::unbounded::<Box<FnBox()>>();
         Arc::new(Cell {
             actor: Arc::new(Mutex::new(actor_producer())),
             actor_producer,
-            msg_queue: Mutex::new(VecDeque::new()),
+            mailbox: rx,
+            postman: tx,
         })
     }
 
@@ -28,12 +32,7 @@ impl<A: Actor + 'static> Cell<A> {
     }
 
     pub(crate) fn address(cell: Arc<Self>) -> Address<A> {
-        Address::new(Arc::downgrade(&cell))
-    }
-
-    pub(crate) fn receive(&self, f: Box<FnBox()>) {
-        let mut msg_queue = self.msg_queue.lock().unwrap();
-        msg_queue.push_back(f);
+        Address::new(Arc::downgrade(&cell), (&cell).postman.clone())
     }
 }
 
@@ -48,8 +47,7 @@ pub(crate) trait ACell: Send + Sync {
 }
 impl<A: Actor + 'static> ACell for Cell<A> {
     fn process(&self) -> bool {
-        let mut msg_queue = self.msg_queue.lock().unwrap();
-        if let Some(f) = msg_queue.pop_front() {
+        if let Some(f) = self.mailbox.try_recv() {
             f();
             return true;
         }

@@ -1,6 +1,7 @@
 #![feature(fnbox)]
 #![allow(dead_code)]
 
+extern crate crossbeam_channel;
 #[macro_use]
 extern crate log;
 extern crate num_cpus;
