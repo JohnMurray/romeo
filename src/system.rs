@@ -12,6 +12,8 @@ use rand::{thread_rng, Rng, ThreadRng};
 
 /// System is the main handle into a running actor system. It is responsible for creating
 /// actors, starting the system (spawning threads and schedulers), stopping the system, etc.
+///
+/// To configure the system, please refer to `romeo::system::Config`.
 pub struct System {
     thread_handles: Vec<thread::JoinHandle<()>>,
     thread_schedulers: Vec<Arc<Scheduler>>,
@@ -35,6 +37,15 @@ impl System {
         self.config = config;
     }
 
+    /// Create a new actor in the system and in return get an address to talk to the actor. Note
+    /// that Romeo tries it's best to keep the actor away from you. Why? Because this ensures that
+    /// you are not able to manipulate the internal state of the actor directly, but must communicate
+    /// with it through _pure_ semantics.
+    ///
+    /// Could you manually pass in a channel to your actor instance to bypasss actor-based
+    /// communication? Sure you could, but then why are you using actors? `:-P`.
+    ///
+    /// __Note:__ You the system must be running (see `spawn`) before you can create actors.
     pub fn new_actor<A, P>(&mut self, props: P) -> Address<A>
     where
         A: Actor + ActorConstructable<P> + 'static,
@@ -60,6 +71,9 @@ impl System {
         Cell::address(cell)
     }
 
+    /// Spawns threads and creates schedulers (the runtime) in order to operate the actor system
+    /// on top of. Before calling this method, ensure all desired configurations have been made
+    /// via `System::with_config`. This method will not block the current thread.
     pub fn spawn(&mut self) {
         self.state = RunningState::Starting;
         // Spawn threads and schedulers
@@ -75,6 +89,8 @@ impl System {
         // TODO: send all schedulers to each other (for reporting / work-stealing)
     }
 
+    /// __Note:__ This currently does nothing but block on the scheduler threads, which will never
+    /// exit. This is to-be-implemented.
     pub fn graceful_shutdown(self) {
         // TODO: send some kind of shutdown flag
         // Wait for all threads to stop
@@ -88,6 +104,10 @@ impl System {
     }
 }
 
+/// As the system is more of a handle to the actor runtime, it should be able to be sent across
+/// threads. However, it is not sync to avoid race-conditions in starting/stopping and actor creation,
+/// as there is an assumed order. Please look into other primitives, such as a `Mutex` if you require
+/// this behavior.
 unsafe impl Send for System {}
 
 #[derive(PartialEq, Eq)]
