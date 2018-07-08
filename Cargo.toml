@@ -1,9 +1,17 @@
 [package]
 name = "romeo"
-version = "0.0.2"
+version = "0.0.3" # don't forget to update html root_url
 authors = ["John Murray <me@johnmurray.io>"]
-description = "--"
+description = "An experimental actor framework for plug-able behaviors"
+repository = "https://github.com/johnmurray/romeo"
+documentation = "https://docs.rs/romeo"
+keywords = ["actor", "distributed", "actix"]
+categories = ["asynchronous", "concurrency"]
 license = "Apache-2.0"
+readme = "readme.md"
 
 [dependencies]
+crossbeam-channel = "0.2.1"
 log = "0.4"
+num_cpus = "1.8.0"
+rand = "0.5.3"

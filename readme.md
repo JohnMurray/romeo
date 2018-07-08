@@ -1,7 +1,7 @@
 # Romeo
 
-Romeo is an experimental actor framework for Rust. At this point
-it is nothing more than a research project for myself. So go away. `-__-`
+Romeo is an experimental actor framework for Rust. At this point things are really
+rough and I'm still getting things ready for eventual use. So go away. `-__-`
 
 ## More Information
 Still here? Okay, well I'll keep talking. The eventual goal is to create a
@@ -14,7 +14,7 @@ and what do I need consensus on?
 
 This project intends to make all of that plug-able so that user-defined implementations
 can be used and experimented with. The goal is to create an actor system that is
-customizable/tuneable to the end-users desires.
+customizable/tunable to the end-users desires.
 
 Like I said at the beginning, this is currently just in the beginning phases of me
 designing the basic bits and getting everything _working_. Don't expect magic at the

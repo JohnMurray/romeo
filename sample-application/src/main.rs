@@ -35,11 +35,14 @@ impl Receives<u8> for AccountingActor {
 
 
 fn main() {
-    let runtime = Runtime::new();
+    let mut system = System::new();
+    system.spawn();
 
-    let address = runtime.new_actor::<AccountingActor, AccountingProps>(AccountingProps { starting_balance: 1 });
+    let address = system.new_actor::<AccountingActor, AccountingProps>(AccountingProps { starting_balance: 1 });
     // let mut address = Cell::address(cell.clone());
     address.send(32u8); 
 
-    runtime.start();
+    // system.graceful_shutdown();
+    use std::thread;
+    loop { thread::sleep_ms(100); }
 }
