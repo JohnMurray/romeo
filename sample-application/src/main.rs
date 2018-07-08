@@ -5,14 +5,7 @@ use romeo::actor::*;
 struct AccountingActor {
     balance: i32,
 }
-impl Actor for AccountingActor {
-    fn start() {
-        println!("Starting the actor");
-    }
-    fn pre_stop() {
-        println!("Pre-start hook called");
-    }
-}
+impl Actor for AccountingActor { }
 struct AccountingProps {
     starting_balance: i32,
 }
@@ -39,7 +32,6 @@ fn main() {
     system.spawn();
 
     let address = system.new_actor::<AccountingActor, AccountingProps>(AccountingProps { starting_balance: 1 });
-    // let mut address = Cell::address(cell.clone());
     address.send(32u8); 
 
     // system.graceful_shutdown();

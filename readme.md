@@ -22,10 +22,11 @@ designing the basic bits and getting everything _working_. Don't expect magic at
 moment, or any real stability if you plan to play around with it. 
 
 ## Latest Progress
-Actors can be created, addressed, and communicated with (one way). A basic (mostly
-useless) blocking runtime exists to execute messages over actors. 
+Actors can be created, addressed, and communicated with. A basic runtime exists to
+execute messages over actors. The runtime operates as a basic event loop (with one event
+type).
 
 ## Currently Working On
 
-The runtime needs to spin up threads to execute the system over and each thread needs
-a scheduler to check the inboxes of all actors it is responsible for. 
+Additional tests for actor-to-actor communication and the introduction of supervision-trees.
+
