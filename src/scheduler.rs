@@ -3,6 +3,8 @@ use super::cell::ACell;
 use std::sync::{Arc, Mutex};
 use std::{thread, time};
 
+use uuid::Uuid;
+
 /// The Scheduler is responsible for scheduling execution of messages over actors for
 /// a single thread. It also keeps references to underlying cells in order to process
 /// messages and handle lifecycle events.
@@ -54,6 +56,23 @@ impl Scheduler {
             } else {
                 backoff_us = base_backoff_us;
             }
+        }
+    }
+
+    /// Stop an actor by removing it from the scheduler and calling all lifecycle
+    /// events related to shutdown.
+    pub(crate) fn stop_actor(&self, uuid: Uuid) {
+        let mut cells = self.cells.lock().unwrap();
+        let mut remove_cell: Option<usize> = None;
+        for (i, cell) in cells.iter().enumerate() {
+            if cell.uuid() == uuid {
+                remove_cell = Some(i);
+                break;
+            }
+        }
+        if let Some(i) = remove_cell {
+            let cell = cells.remove(i);
+            // TODO: call lifecycle shutdown hook
         }
     }
 }
