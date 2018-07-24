@@ -1,7 +1,6 @@
-use super::cell::ACell;
 use super::scheduler::Scheduler;
 
-use std::sync::{Arc, Weak};
+use std::sync::{Weak};
 
 use uuid::Uuid;
 
@@ -9,8 +8,8 @@ use uuid::Uuid;
 // Base Actor Definition
 // ---
 pub trait Actor: Send + Sync {
-    fn start() {}
-    fn pre_stop() {}
+    fn start(&mut self) {}
+    fn pre_stop(&mut self) {}
 }
 
 // ---
@@ -57,7 +56,7 @@ impl Context {
             parent_scheduler: scheduler,
         }
     }
-    fn stop(&self) {
+    pub fn stop(&self) {
         let scheduler = Weak::upgrade(&self.parent_scheduler);
         if scheduler.is_none() {
             // TODO: clean up error message

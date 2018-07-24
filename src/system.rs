@@ -68,7 +68,7 @@ impl System {
                                            Arc::downgrade(&self.thread_schedulers[scheduler_index]));
 
         // Hand the cell over to a random scheduler
-        self.thread_schedulers[scheduler_index].add_cell(cell.clone());
+        self.thread_schedulers[scheduler_index].register_new_cell(cell.clone());
 
         // Return an address (handle to communicate with the actor in the cell)
         Cell::address(cell)

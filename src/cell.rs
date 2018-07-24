@@ -3,6 +3,7 @@ use super::address::Address;
 use super::scheduler::Scheduler;
 
 use std::boxed::FnBox;
+use std::cell::RefCell;
 use std::sync::{Arc, Mutex, Weak};
 
 use crossbeam_channel as channel;
@@ -14,7 +15,7 @@ use uuid::Uuid;
 pub(crate) struct Cell<A: Actor> {
     uuid: Uuid,
     actor: Arc<Mutex<A>>,
-    actor_running_state: actor::State,
+    actor_running_state: RefCell<actor::State>,
     actor_producer: Box<Fn() -> A>,
     mailbox: channel::Receiver<Box<FnBox()>>,
     postman: channel::Sender<Box<FnBox()>>,
@@ -28,7 +29,7 @@ impl<A: Actor + 'static> Cell<A> {
         Arc::new(Cell {
             uuid: Uuid::new_v4(),
             actor: Arc::new(Mutex::new(actor_producer())),
-            actor_running_state: actor::State::Starting,
+            actor_running_state: RefCell::new(actor::State::Starting),
             actor_producer,
             mailbox: rx,
             postman: tx,
@@ -42,7 +43,7 @@ impl<A: Actor + 'static> Cell<A> {
     }
 
     pub(crate) fn context(&self) -> Context {
-        Context::new(self.uuid, self.actor_running_state.clone(), self.parent_scheduler.clone())
+        Context::new(self.uuid, self.actor_running_state.borrow().clone(), self.parent_scheduler.clone())
     }
 
     pub(crate) fn address(cell: Arc<Self>) -> Address<A> {
@@ -59,6 +60,8 @@ unsafe impl<A: Actor> Sync for Cell<A> {}
 pub(crate) trait ACell: Send + Sync {
     fn process(&self) -> bool;
     fn uuid(&self) -> Uuid;
+    fn start(&self);
+    fn shutdown(&self);
 }
 impl<A: Actor + 'static> ACell for Cell<A> {
     fn process(&self) -> bool {
@@ -71,6 +74,17 @@ impl<A: Actor + 'static> ACell for Cell<A> {
 
     fn uuid(&self) -> Uuid {
         self.uuid.clone()
+    }
+
+    fn start(&self) {
+        self.actor.lock().unwrap().start();
+        self.actor_running_state.replace(actor::State::Running);
+    }
+
+    fn shutdown(&self) {
+        self.actor_running_state.replace(actor::State::Stopping);
+        self.actor.lock().unwrap().pre_stop();
+        self.actor_running_state.replace(actor::State::Halted);
     }
 }
 
