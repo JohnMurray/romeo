@@ -23,8 +23,8 @@ moment, or any real stability if you plan to play around with it.
 
 ## Latest Progress
 Actors can be created, addressed, and communicated with. A basic runtime exists to
-execute messages over actors. The runtime operates as a basic event loop (with one event
-type).
+execute messages over actors. The runtime operates schedulers across multiple threads,
+each running a simplified event-loop.
 
 ## Currently Working On
 
