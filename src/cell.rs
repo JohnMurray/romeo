@@ -1,34 +1,49 @@
-use super::actor::Actor;
+use super::actor::{self, Actor, Context};
 use super::address::Address;
+use super::scheduler::Scheduler;
 
 use std::boxed::FnBox;
-use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use std::sync::{Arc, Mutex, Weak};
 
 use crossbeam_channel as channel;
+use uuid::Uuid;
 
 // ---
 // Cell
 // ---
 pub(crate) struct Cell<A: Actor> {
+    uuid: Uuid,
     actor: Arc<Mutex<A>>,
+    actor_running_state: RefCell<actor::State>,
     actor_producer: Box<Fn() -> A>,
     mailbox: channel::Receiver<Box<FnBox()>>,
     postman: channel::Sender<Box<FnBox()>>,
+
+    parent_scheduler: Weak<Scheduler>,
 }
 
 impl<A: Actor + 'static> Cell<A> {
-    pub(crate) fn new(actor_producer: Box<Fn() -> A>) -> Arc<Self> {
+    pub(crate) fn new(actor_producer: Box<Fn() -> A>, scheduler: Weak<Scheduler>) -> Arc<Self> {
         let (tx, rx) = channel::unbounded::<Box<FnBox()>>();
         Arc::new(Cell {
+            uuid: Uuid::new_v4(),
             actor: Arc::new(Mutex::new(actor_producer())),
+            actor_running_state: RefCell::new(actor::State::Starting),
             actor_producer,
             mailbox: rx,
             postman: tx,
+
+            parent_scheduler: scheduler,
         })
     }
 
     pub(crate) fn actor_ref(&self) -> Arc<Mutex<A>> {
         self.actor.clone()
+    }
+
+    pub(crate) fn context(&self) -> Context {
+        Context::new(self.uuid, self.actor_running_state.borrow().clone(), self.parent_scheduler.clone())
     }
 
     pub(crate) fn address(cell: Arc<Self>) -> Address<A> {
@@ -44,6 +59,9 @@ unsafe impl<A: Actor> Sync for Cell<A> {}
 // ---
 pub(crate) trait ACell: Send + Sync {
     fn process(&self) -> bool;
+    fn uuid(&self) -> Uuid;
+    fn start(&self);
+    fn shutdown(&self);
 }
 impl<A: Actor + 'static> ACell for Cell<A> {
     fn process(&self) -> bool {
@@ -53,4 +71,26 @@ impl<A: Actor + 'static> ACell for Cell<A> {
         }
         false
     }
+
+    fn uuid(&self) -> Uuid {
+        self.uuid.clone()
+    }
+
+    fn start(&self) {
+        self.actor.lock().unwrap().start();
+        self.actor_running_state.replace(actor::State::Running);
+    }
+
+    fn shutdown(&self) {
+        self.actor_running_state.replace(actor::State::Stopping);
+        self.actor.lock().unwrap().pre_stop();
+        self.actor_running_state.replace(actor::State::Halted);
+    }
 }
+
+impl PartialEq for ACell {
+    fn eq(&self, other: &ACell) -> bool {
+        self.uuid() == other.uuid()
+    }
+}
+impl Eq for ACell {}

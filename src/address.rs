@@ -30,7 +30,7 @@ impl<A: Actor + 'static> Address<A> {
             let receive: Box<FnBox()> = Box::new(move || -> () {
                 let actor_mutex = lambda_cell.actor_ref();
                 let mut act = actor_mutex.lock().unwrap();
-                act.receive(msg);
+                act.receive(msg, &lambda_cell.context());
             });
             self.postman.send(receive);
         } else {

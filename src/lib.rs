@@ -6,6 +6,7 @@ extern crate crossbeam_channel;
 extern crate log;
 extern crate num_cpus;
 extern crate rand;
+extern crate uuid;
 
 pub mod actor;
 pub mod address;

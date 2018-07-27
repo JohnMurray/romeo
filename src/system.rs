@@ -59,13 +59,16 @@ impl System {
             );
         }
 
+        // Choose a scheduler for the Cell to live on
+        let scheduler_index = Rng::gen_range(&mut self.rng, 0, self.thread_schedulers.len());
+
         // Create the actor-cell
         let producer = Box::new(move || A::new(&props));
-        let cell: Arc<Cell<A>> = Cell::new(producer);
+        let cell: Arc<Cell<A>> = Cell::new(producer,
+                                           Arc::downgrade(&self.thread_schedulers[scheduler_index]));
 
         // Hand the cell over to a random scheduler
-        let scheduler_index = Rng::gen_range(&mut self.rng, 0, self.thread_schedulers.len());
-        self.thread_schedulers[scheduler_index].add_cell(cell.clone());
+        self.thread_schedulers[scheduler_index].register_new_cell(cell.clone());
 
         // Return an address (handle to communicate with the actor in the cell)
         Cell::address(cell)
