@@ -28,5 +28,5 @@ type).
 
 ## Currently Working On
 
-Additional tests for actor-to-actor communication and the introduction of supervision-trees.
+Implementing a basic context with actor self-management features (stop, restart, etc).
 
