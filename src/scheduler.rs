@@ -91,8 +91,9 @@ impl Scheduler {
                 {
                     let mut stops = self.actor_stops.lock().unwrap();
                     let mut cells = self.cells.write().unwrap();
-                    if let Some(actor) = stops.pop_front() {
+                    while let Some(actor) = stops.pop_front() {
                         // call shutdown handle
+                        debug!("Shutting down actor-cell: {}", actor.uuid());
                         actor.shutdown();
 
                         // remove the cell from the scheduler
@@ -101,7 +102,7 @@ impl Scheduler {
                             .map(|(i, c)| (i, c.uuid()));
                         if let Some((id, uuid)) = cell_lookup {
                             cells.remove(id);
-                            debug!("Removed cell from scheduler: {}", uuid);
+                            debug!("Removed actor-cell from scheduler: {}", uuid);
                         }
 
                         zero_work_loop = false;
@@ -111,7 +112,7 @@ impl Scheduler {
                 // start a new actor if one is available
                 {
                     let mut starts = self.actor_starts.lock().unwrap();
-                    if let Some(actor) = starts.pop_front() {
+                    while let Some(actor) = starts.pop_front() {
                         debug!("Starting actor-cell: {}", actor.uuid());
                         actor.start();
                         zero_work_loop = false;
@@ -121,7 +122,7 @@ impl Scheduler {
                 // restart any actors that need to do so
                 {
                     let mut restarts = self.actor_restarts.lock().unwrap();
-                    if let Some(actor) = restarts.pop_front() {
+                    while let Some(actor) = restarts.pop_front() {
                         debug!("Restarting actor-cell: {}", actor.uuid());
                         actor.restart();
                         zero_work_loop = false;
@@ -133,8 +134,16 @@ impl Scheduler {
                 {
                     let cells = self.cells.read().unwrap();
                     cells.iter().for_each(|cell| {
-                        // TODO: Should be checking for a result type here and possibly triggering lifecycle
-                        // TODO: methods (restart, shutdown, etc)
+                        /* TODO: We need to check for a result type here and trigger a stop/restart/resume
+                         *       based on the error-handling/management policy set by the parent or guardian
+                         *       actor.
+                         */
+                        /* TODO: Currently we only process one message at a time for actors as a message
+                         *       might trigger the actor to stop/restart. It would be nice if we could
+                         *       provide a sentinal value to know to stop processing. So a process "up-to"
+                         *       rather than one at a time.
+                         */
+                        debug!("Processing message for actor-cell: {}", cell.uuid());
                         if cell.process() {
                             zero_work_loop = false;
                         }
