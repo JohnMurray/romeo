@@ -22,6 +22,10 @@ I need a way to keep things straight so I'm making myself a little cheat-sheet.
    + __Links__: `Cell`
    + __Links__: Send Channel
 
+ + `Context`
+   + __Links__: Parent `Scheduler`
+   + __Contains__: UUID of Parent `Cell`
+
 Things are _mostly_ top-down with the exception that the cell links back up to the
 scheduler. There are some minor details in the code about how this all relates that
 I won't include here since it's too in flux.

@@ -84,7 +84,7 @@ impl System {
             let scheduler = Arc::new(Scheduler::new(thread_id));
             self.thread_schedulers.push(scheduler.clone());
             self.thread_handles.push(thread::spawn(move || {
-                println!("Spawning scheduler on new thread");
+                trace!("Spawning scheduler({}) on new thread", thread_id);
                 scheduler.start();
             }));
         }
