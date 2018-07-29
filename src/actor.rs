@@ -59,11 +59,19 @@ impl Context {
     pub fn stop(&self) {
         let scheduler = Weak::upgrade(&self.parent_scheduler);
         if scheduler.is_none() {
-            // TODO: clean up error message
-            panic!("Actor is no longer owned by a scheduler! I don't know how this happened, but it did.")
+            panic!("Actor orphaned by scheduler!")
         }
 
         scheduler.unwrap().stop_actor(self.parent_cell_uuid);
+    }
+
+    pub fn restart(&self) {
+        let scheduler = Weak::upgrade(&self.parent_scheduler);
+        if scheduler.is_none() {
+            panic!("Actor orphaned by scheduler!")
+        }
+
+        scheduler.unwrap().restart_actor(self.parent_cell_uuid);
     }
 }
 

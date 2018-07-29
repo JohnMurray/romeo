@@ -49,6 +49,13 @@ impl<A: Actor + 'static> Cell<A> {
     pub(crate) fn address(cell: Arc<Self>) -> Address<A> {
         Address::new(Arc::downgrade(&cell), (&cell).postman.clone())
     }
+
+    /// Replace the current actor state with the `actor_producer` constructor
+    /// lambda. Typically used with actor restarts. See `romeo::actor::Context::restart`.
+    pub(crate) fn reset_actor_state(&self) {
+        let mut actor = self.actor.lock().unwrap();
+        *actor = (*self.actor_producer)();
+    }
 }
 
 unsafe impl<A: Actor> Send for Cell<A> {}
@@ -61,6 +68,7 @@ pub(crate) trait ACell: Send + Sync {
     fn process(&self) -> bool;
     fn uuid(&self) -> Uuid;
     fn start(&self);
+    fn restart(&self);
     fn shutdown(&self);
 }
 impl<A: Actor + 'static> ACell for Cell<A> {
@@ -79,6 +87,15 @@ impl<A: Actor + 'static> ACell for Cell<A> {
     fn start(&self) {
         self.actor.lock().unwrap().start();
         self.actor_running_state.replace(actor::State::Running);
+    }
+
+    fn restart(&self) {
+        self.shutdown();
+        {
+            let mut actor = self.actor.lock().unwrap();
+            *actor = (*self.actor_producer)();
+        }
+        self.start();
     }
 
     fn shutdown(&self) {

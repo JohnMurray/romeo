@@ -8,11 +8,11 @@ struct AccountingActor {
 }
 impl Actor for AccountingActor {
     fn start(&mut self) {
-        println!("Starting, yo!");
+        println!("AccountingActor::start()");
     }
 
     fn pre_stop(&mut self) {
-        println!("Stopping, yo!");
+        println!("AccountingActor::pre_stop()");
     }
 }
 struct AccountingProps {
@@ -31,10 +31,14 @@ impl ActorConstructable<AccountingProps> for AccountingActor {
 impl Receives<u8> for AccountingActor {
     fn receive(&mut self, msg: u8, ctx: &Context) {
         self.balance += msg as i32;
+        println!("Received: {}", msg);
         println!("Current balance: {0}", self.balance);
         if msg == 0 {
             println!("attempting to stop actor...");
             ctx.stop();
+        } else if msg == 3 {
+            println!("attempting to restart actor ...");
+            ctx.restart();
         } else {
             println!("not stopping actor");
         }
@@ -48,6 +52,8 @@ fn main() {
     system.spawn();
 
     let address = system.new_actor::<AccountingActor, AccountingProps>(AccountingProps { starting_balance: 1 });
+    address.send(32u8); 
+    address.send(3u8);
     address.send(32u8); 
     address.send(0u8);
 
